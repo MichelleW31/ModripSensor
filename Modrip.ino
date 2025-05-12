@@ -1,11 +1,14 @@
+
+
 // LIBRARIES
 #include <PubSubClient.h>
+#include <NTPClient.h>
+#include <WiFiClientSecure.h>
 
 #include <IRremote.hpp>
 
 #include <ArduinoJson.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <Wire.h>
 #include "Adafruit_BME680.h"
@@ -13,14 +16,44 @@
 #include "secrets.h"
 
 // MQTT SERVER
-const char* mqtt_server ="902e1d0dba3944fa88c5f6caac765b57.s1.eu.hivemq.cloud"
+const char* mqtt_server ="902e1d0dba3944fa88c5f6caac765b57.s1.eu.hivemq.cloud";
 
 // SERVER CONNECTION
 const char* modId = "67e1f54045d20e4703ad5c4a";
-// Will need to make the modId dynamic in url
-const char* serverConnectionUrl = "https://modripservice.onrender.com/mods/67e1f54045d20e4703ad5c4a";
-const char* authEndpointUrl = "https://modripservice.onrender.com/authenticate_mod";
-const char* sensorStatusUrl = "https://modripservice.onrender.com/sensor_status/67e1f54045d20e4703ad5c4a";
+
+const char* ca_cert = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
+ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
+MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
+h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
+A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
+T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
+B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
+B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
+KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
+OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
+jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
+qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
+rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
+hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
+ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
+3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
+NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
+ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
+TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
+jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
+oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
+4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
+mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
+emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+-----END CERTIFICATE-----
+)EOF";
 
 String idToken;
 
@@ -37,26 +70,28 @@ String idToken;
 
 Adafruit_BME680 bme(&Wire);
 
+WiFiClientSecure espSecureClient;
+PubSubClient client(espSecureClient);
+
 // Set timer to 10 minutes
-int timerDelay = 600000;
-// Set timer to 7 minutes
-// int timerDelay = 420000;
+// int timerDelay = 600000;
 // Set timer to 5 minutes
 // int timerDelay = 300000;
-// Set timer to 1 minutes
+// // Set timer to 1 minutes
 // int timerDelay = 60000;
+// // Set timer to 1 second
+int timerDelay = 1000;
 
 //////////////////////////////////
 //////////// SETUP ///////////////
 //////////////////////////////////
 
 void setup() {
-  
   // Setup Serial Monitor
-  Serial.begin(9600);
+  Serial.begin(115200);
 
-  // Connect SCL and SDA pins
-  Wire.begin(33, 32);
+  // Connect SDA and SCL pins
+  Wire.begin(21, 22);
 
   if (!bme.begin()) {
     Serial.println("Could not find a valid BME680 sensor, check wiring!");
@@ -73,8 +108,6 @@ void setup() {
   // Start wifi 
   WiFi.begin(ssid, password);
 
-  Serial.println("Connecting");
-
   while(WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -83,93 +116,48 @@ void setup() {
   Serial.println("");
   Serial.print("Connected to WiFi network");
 
-  idToken = getIdToken(modId);
+  // Connect to mqtt server
+  espSecureClient.setCACert(ca_cert);
+  client.setServer(mqtt_server, 8883);
 }
 
 //////////////////////////////////
-//////////// LOOP ////////////////
+/////// RECONNECT TO MQTT ////////
 //////////////////////////////////
 
-void loop() {
-  // Read the Analog Input
-  int moistureSensorValue = analogRead(35);
+void reconnect() {
+  const char* clientId = "Mod-67e1f54045d20e4703ad5c4a";
 
-  if (! bme.performReading()) {
-    Serial.println("Failed to perform reading :(");
-    return;
+  // Keep running this until connected to mqtt broker
+  while(!client.connected()) {
+    if (client.connect(clientId, mqqt_username, mqqt_password)) {
+      Serial.println("Broker connected");
+      sendSensorStatus();
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
   }
-
-  int tempSensorValue = bme.temperature;
-  int humiditySensorValue = bme.humidity;
-  
-  // PUT CALL
-  if (idToken != "") {
-    sendReadings(moistureSensorValue, tempSensorValue, humiditySensorValue, idToken);
-  }
-  
-  delay(timerDelay);
 }
 
 //////////////////////////////////
-///////// GET ID TOKEN ///////////
+/////// SEND SENSOR STATUS ///////
 //////////////////////////////////
 
-String getIdToken (String modId) {
-  HTTPClient http;
-  http.begin(authEndpointUrl);
-  http.addHeader("Content-Type", "application/json; charset=utf-8");
-
+void sendSensorStatus() {
+  // Publish sensor status to message broker
   StaticJsonDocument<200> doc;
 
+  doc["sensorStatus"] = true;
   doc["modId"] = modId;
 
   String requestBody;
 
-  serializeJson(doc,requestBody);
+  serializeJson(doc, requestBody);
 
-  int httpResponseCode = http.POST(requestBody);
-
-  if (httpResponseCode == 200) {
-        String response = http.getString();
-        Serial.println("Authentication successful");
-
-        DynamicJsonDocument doc(1024);
-        deserializeJson(doc, response);
-
-        return doc["idToken"].as<String>();  // Extract ID Token
-    } else {
-        Serial.println("Failed to get ID Token: " + http.errorToString(httpResponseCode));
-        return "";
-    }
-
-    http.end();
-}
-
-//////////////////////////////////
-////// SEND SENSOR STATUS ////////
-//////////////////////////////////
-
-void sendSensorStatus() {
-  HTTPClient http;
-  http.begin(sensorStatusUrl);
-
-  // Set up request
-  http.addHeader("Content-Type", "application/json; charset=utf-8");
-  http.addHeader("Content-Length", "0");
-  // http.addHeader("Authorization", "Bearer " + idToken);
-
-  http.setTimeout(10000);
-
-  int httpResponseCode = http.POST("{}");
-
-  if (httpResponseCode == 200) {
-    Serial.println("Sensor status updated");
-  } else {
-    Serial.println(httpResponseCode);
-    Serial.println("Failed to update sensor status: " + http.errorToString(httpResponseCode));
-  }
-
-    http.end();
+  client.publish("mod/status/67e1f54045d20e4703ad5c4a", requestBody.c_str());
 }
 
 
@@ -177,59 +165,50 @@ void sendSensorStatus() {
 ///////// SEND READINGS //////////
 //////////////////////////////////
 
-void sendReadings(int moistureReading, int temperatureReading, int humidityReading, String idToken) {
-  // Make api call to send sensor readings
+void sendReadings(int moistureReading, int temperatureReading, int humidityReading) {
+  // Publish sensor readings to message broker
     if (WiFi.status() == WL_CONNECTED) {
-      // HTTPClient http;
-
-      // http.begin(serverConnectionUrl);
-
-      // // Set up request
-      // http.addHeader("Content-Type", "application/json; charset=utf-8");
-      // http.addHeader("Authorization", "Bearer " + idToken);
-
-      // StaticJsonDocument<200> doc;
-
-      // doc["moisture"] = moistureReading;
-      // doc["temperature"] = temperatureReading;
-      // doc["humidity"] = humidityReading;
-
-      // String requestBody;
-
-      // serializeJson(doc, requestBody);
-
-      // // Make PUT request
-      // int httpCode = http.PUT(requestBody);
-
-      // if (httpCode == 200) {
-      //   String payload = http.getString();
-
-      //   Serial.println(httpCode);
-
-      //   Serial.println(payload);
-
-        sendSensorStatus();
-      } else if (httpCode == 403) { 
-            Serial.println("ID Token expired. Getting a new one...");
-
-            String newIdToken = getIdToken(modId);
-
-            if (newIdToken != "") {
-                Serial.println("Retrying sensor data update...");
-
-                sendReadings(moistureReading, temperatureReading, humidityReading, newIdToken);  
-            } else {
-                Serial.println("Failed to refresh ID Token. Update not sent.");
-            }
-      }
-      else {       
-        Serial.println("HTTP Request failed, error: " +  http.getString());
+      if (!client.connected()) {
+        reconnect();
       }
 
-      http.end();
+      StaticJsonDocument<200> doc;
+
+      doc["moisture"] = moistureReading;
+      doc["temperature"] = temperatureReading;
+      doc["humidity"] = humidityReading;
+      doc["modId"] = modId;
+
+      String requestBody;
+
+      serializeJson(doc, requestBody);
+
+      client.publish("mod/readings/67e1f54045d20e4703ad5c4a", requestBody.c_str());
     } else {
         Serial.println("Wifi connection failed");
     }
 }
 
 
+//////////////////////////////////
+//////////// LOOP ////////////////
+//////////////////////////////////
+
+void loop() {
+  // Read the Analog Input
+  int moistureSensorValue = analogRead(33);
+  int tempSensorValue = bme.temperature;
+  int humiditySensorValue = bme.humidity;
+
+  if (! bme.performReading()) {
+    Serial.println("Failed to perform reading :(");
+    return;
+  }
+
+  // PUBLISH TO MQTT BROKER
+  sendReadings(moistureSensorValue, tempSensorValue, humiditySensorValue);
+
+  client.loop();
+
+  delay(timerDelay);
+}
