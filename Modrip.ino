@@ -119,6 +119,9 @@ void setup() {
   // Connect to mqtt server
   espSecureClient.setCACert(ca_cert);
   client.setServer(mqtt_server, 8883);
+
+
+  reconnect();
 }
 
 //////////////////////////////////
@@ -128,9 +131,13 @@ void setup() {
 void reconnect() {
   const char* clientId = "Mod-67e1f54045d20e4703ad5c4a";
 
+  // Construct the LWT payload dynamically
+  String lastWillPayload = String("{\"sensorStatus\":false,\"modId\":\"") + modId + "\"}";
+  const char* lastWillPayloadString = lastWillPayload.c_str();
+
   // Keep running this until connected to mqtt broker
   while(!client.connected()) {
-    if (client.connect(clientId, mqqt_username, mqqt_password)) {
+    if (client.connect(clientId, mqqt_username, mqqt_password, "mod/status/67e1f54045d20e4703ad5c4a",1, true, lastWillPayloadString)) {
       Serial.println("Broker connected");
       sendSensorStatus();
     } else {
